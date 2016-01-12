@@ -32,3 +32,4 @@ Le plugin intègre le système d'inscription a la newsletter de mailchimp avec u
 Ressources
 -----
  * http://mailchimp.com/
+ * http://www.magix-cms.com
