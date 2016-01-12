@@ -1,5 +1,7 @@
 # mailchimp
-Plugin mailchimp for Magix CMS
+Plugin mailchimp for [magixcms](http://www.magix-cms.com)
+
+![Plugin Mailchimp Magix CMS](https://cloud.githubusercontent.com/assets/356674/12259485/746a1bc2-b916-11e5-80d5-c039443e2c65.jpg "Plugin Mailchimp pour Magix CMS")
 
 ## Installation
  * Décompresser l'archive dans le dossier "plugins" de magix cms
@@ -23,3 +25,7 @@ Plugin mailchimp for Magix CMS
     });
 </script>
 ```
+
+Ressources
+-----
+ * http://mailchimp.com/
