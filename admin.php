@@ -212,7 +212,7 @@ class plugins_mailchimp_admin extends DBmailchimp {
         return array(
             'url'=> array(
                 'lang'=>'list',
-                'name'=>'Mailling Chimp'
+                'name'=>'MailChimp'
             ),
             'icon'=> array(
                 'type'=>'font',
