@@ -14,6 +14,15 @@ Le plugin intègre le système d'inscription a la newsletter de mailchimp avec u
  * Il ne reste que la configuration du plugin pour correspondre avec vos données.
 
 ### Ajouter dans layout.tpl la ligne suivante :
+```smarty
+{include file="section/footer.tpl" adjust="clip" blocks=['facebook','news','newsletter','contact']}
+{capture name="scriptSkin"}{strip}
+    /min/?f=
+    skin/{template}/js/form.min.js,
+    skin/{template}/js/global.min.js,
+    plugins/mailchimp/js/public.js
+{/strip}{/capture}
+```
 
 ```javascript
 <script type="text/javascript" async>
