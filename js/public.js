@@ -5,11 +5,11 @@
  * Time: 21:39
  * License: Dual licensed under the MIT or GPL Version
  */
-var MC_plugins_maillingchimp = (function ($, undefined) {
+var MC_plugins_mailchimp = (function ($, undefined) {
     //Fonction Private
     function add(iso){
         // *** Set required fields for validation
-        $("#maillingchimp-form").validate({
+        $("#mailchimp-form").validate({
             onsubmit: true,
             event: 'submit',
             rules: {
@@ -29,7 +29,7 @@ var MC_plugins_maillingchimp = (function ($, undefined) {
             submitHandler: function(form) {
                 $.nicenotify({
                     ntype: "submit",
-                    uri: '/'+iso+'/maillingchimp/',
+                    uri: '/'+iso+'/mailchimp/',
                     typesend: 'post',
                     idforms: $(form),
                     resetform:true,

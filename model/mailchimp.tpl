@@ -28,7 +28,7 @@
             &nbsp;
         </p>
         <div class="col-md-6">
-            <input type="submit" class="btn btn-primary" value="{#save#|ucfirst}" />
+            <input type="submit" class="btn btn-main-theme btn-primary" value="{#save#|ucfirst}" />
         </div>
     </div>
     <div class="mc-message"></div>

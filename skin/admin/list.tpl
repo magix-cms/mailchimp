@@ -6,7 +6,7 @@
     <!-- Notifications Messages -->
     {if isset($message)}
         <div class="mc-message clearfix">
-            {include file="message-maillingchimp.tpl"}
+            {include file="message-mailchimp.tpl"}
         </div>
     {/if}
 
