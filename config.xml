@@ -18,7 +18,6 @@
 						<name>Gerits Aurelien</name>
 						<link>
 							<website href="http://www.magix-cms.com" />
-							<blog href="http://blog.aurelien-gerits.be" />
 						</link>
 					</author>
 				</authors>
@@ -28,8 +27,8 @@
 					<number>1.1</number>
 					<phase>Stable</phase>
 					<support>
-                        <ticket href="https://github.com/magix-cms/magixcms/issues"></ticket>
-                        <git href="https://github.com/magix-cms/magixcms"></git>
+                        <ticket href="https://github.com/magix-cms/mailchimp/issues"></ticket>
+                        <git href="https://github.com/magix-cms/mailchimp"></git>
 					</support>
 				</version>
 			</infos>
