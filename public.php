@@ -1,6 +1,41 @@
 <?php
+/*
+ # -- BEGIN LICENSE BLOCK ----------------------------------
+ #
+ # This file is part of MAGIX CMS.
+ # MAGIX CMS, The content management system optimized for users
+ # Copyright (C) 2008 - 2013 magix-cms.com <support@magix-cms.com>
+ #
+ # OFFICIAL TEAM :
+ #
+ #   * Gerits Aurelien (Author - Developer) <aurelien@magix-cms.com> <contact@aurelien-gerits.be>
+ #
+ # Redistributions of files must retain the above copyright notice.
+ # This program is free software: you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation, either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # This program is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+
+ # You should have received a copy of the GNU General Public License
+ # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ #
+ # -- END LICENSE BLOCK -----------------------------------
+
+ # DISCLAIMER
+
+ # Do not edit or add to this file if you wish to upgrade MAGIX CMS to newer
+ # versions in the future. If you wish to customize MAGIX CMS for your
+ # needs please refer to http://www.magix-cms.com for more information.
+ */
+require_once('db/mailchimp.php');
 require_once 'MailChimp.php';
-class plugins_mailchimp_public extends database_plugins_mailchimp{
+
+class plugins_mailchimp_public extends database_plugins_mailchimp {
     protected $template;
     public $email_chimp,$firstname_chimp,$lastname_chimp;
     /**
@@ -24,7 +59,7 @@ class plugins_mailchimp_public extends database_plugins_mailchimp{
      * Installation des tables mysql du plugin
      */
     private function install_table(){
-        if(parent::c_show_table() == 0){
+        if(parent::c_show_tables() == 0){
             $this->getNotify('error');
         }else{
             return true;
@@ -75,7 +110,6 @@ class plugins_mailchimp_public extends database_plugins_mailchimp{
                         'send_welcome' => false
                     ));
 
-                    //print_r($result);
                     if($notify)
                         $this->getNotify('add');
                 } else {
@@ -94,47 +128,6 @@ class plugins_mailchimp_public extends database_plugins_mailchimp{
         if(isset($this->email_chimp)){
             $this->subscribe($this->email_chimp, $this->firstname_chimp, $this->lastname_chimp);
         }
-    }
-}
-class database_plugins_mailchimp{
-    /**
-     * Vérifie si les tables du plugin sont installé
-     * @access protected
-     * return integer
-     */
-    protected function c_show_table()
-    {
-        $table = 'mc_plugins_mailchimp';
-        return magixglobal_model_db::layerDB()->showTable($table);
-    }
-
-    ///////////////
-    // GET ////////
-    ///////////////
-
-    /**
-     * @return array
-     */
-    protected function getApi() {
-        $query = 'SELECT * FROM `mc_plugins_mailchimp` LIMIT 1';
-
-        return magixglobal_model_db::layerDB()->selectOne($query);
-    }
-
-    /**
-     * @param $api
-     * @param $lang
-     * @return array
-     */
-    protected function getCode($api, $iso) {
-        $query = 'SELECT `list_id` FROM `mc_plugins_mailchimp_list` as ml
-                  LEFT JOIN `mc_lang` ON `ml`.`idlang` = `mc_lang`.`idlang`
-                  WHERE iso = :iso AND idapi = :api';
-
-        return magixglobal_model_db::layerDB()->selectOne($query, array(
-            ':iso' => $iso,
-            ':api' => $api
-        ));
     }
 }
 ?>
