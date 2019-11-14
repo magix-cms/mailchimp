@@ -3,7 +3,7 @@
 namespace Drewm;
 
 /**
- * Super-simple, minimum abstraction MailChimp API v2 wrapper
+ * Super-simple, minimum abstraction MailChimp API v3 wrapper
  *
  * Uses curl if available, falls back to file_get_contents and HTTP stream.
  * This probably has more comments than code.
@@ -11,14 +11,15 @@ namespace Drewm;
  * Contributors:
  * Michael Minor <me@pixelbacon.com>
  * Lorna Jane Mitchell, github.com/lornajane
+ * Salvatore Di Salvo, github.com/xarksass
  *
  * @author Drew McLellan <drew.mclellan@gmail.com>
- * @version 1.1.1
+ * @version 2.0
  */
 class MailChimp
 {
     private $api_key;
-    private $api_endpoint = 'https://<dc>.api.mailchimp.com/2.0';
+    private $api_endpoint = 'https://<dc>.api.mailchimp.com/3.0';
     private $verify_ssl   = false;
 
     /**
@@ -38,9 +39,9 @@ class MailChimp
      * @param  array  $args   An array of arguments to pass to the method. Will be json-encoded for you.
      * @return array          Associative array of json decoded API response.
      */
-    public function call($method, $args=array(), $timeout = 10)
+    public function call($method, $type='GET', $args=array(), $timeout = 10)
     {
-        return $this->makeRequest($method, $args, $timeout);
+        return $this->makeRequest($method, $type, $args, $timeout);
     }
 
     /**
@@ -49,39 +50,55 @@ class MailChimp
      * @param  array  $args   Assoc array of parameters to be passed
      * @return array          Assoc array of decoded result
      */
-    private function makeRequest($method, $args=array(), $timeout = 10)
+    private function makeRequest($method, $type, $args=array(), $timeout = 10)
     {
-        $args['apikey'] = $this->api_key;
+        $result = false;
 
-        $url = $this->api_endpoint.'/'.$method.'.json';
+		if(!empty($method) && ($type === 'POST' || $type === 'PUT' || $type === 'DELETE' || $type === 'GET')){
+			$url = $this->api_endpoint.'/'.$method;
 
-        if (function_exists('curl_init') && function_exists('curl_setopt')){
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, $url);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
-            curl_setopt($ch, CURLOPT_USERAGENT, 'PHP-MCAPI/2.0');
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $this->verify_ssl);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($args));
-            $result = curl_exec($ch);
-            curl_close($ch);
-        } else {
-            $json_data = json_encode($args);
-            $result    = file_get_contents($url, null, stream_context_create(array(
-                'http' => array(
-                    'protocol_version' => 1.1,
-                    'user_agent'       => 'PHP-MCAPI/2.0',
-                    'method'           => 'POST',
-                    'header'           => "Content-type: application/json\r\n".
-                        "Connection: close\r\n" .
-                        "Content-length: " . strlen($json_data) . "\r\n",
-                    'content'          => $json_data,
-                ),
-            )));
-        }
+			if (function_exists('curl_init') && function_exists('curl_setopt')){
+				$ch = curl_init();
+				if(!empty($args)) {
+					if($type === 'GET') {
+						$params = http_build_query($args);
+						curl_setopt($ch, CURLOPT_URL, $url.'?'.$params );
+					}
+					elseif($type === 'POST' || $type === 'PUT' || $type === 'DELETE') {
+						curl_setopt($ch, CURLOPT_URL, $url);
+						curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($args));
+					}
+				}
+				else {
+					curl_setopt($ch, CURLOPT_URL, $url);
+				}
 
-        return $result ? json_decode($result, true) : false;
+				curl_setopt($ch, CURLOPT_USERPWD, "magixcms:$this->api_key");
+				curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
+				curl_setopt($ch, CURLOPT_USERAGENT, 'PHP-MCAPI/2.0');
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+				curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+				curl_setopt($ch, CURLOPT_POST, $type === 'POST');
+				if($type === 'PUT' || 'DELETE') curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $type);
+				curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $this->verify_ssl);
+				$result = curl_exec($ch);
+				curl_close($ch);
+			} else {
+				$json_data = json_encode($args);
+				$result    = file_get_contents($url, null, stream_context_create(array(
+					'http' => array(
+						'protocol_version' => 1.1,
+						'user_agent'       => 'PHP-MCAPI/2.0',
+						'method'           => $type,
+						'header'           => "Content-type: application/json\r\n".
+							"Connection: close\r\n" .
+							"Content-length: " . strlen($json_data) . "\r\n",
+						'content'          => $json_data,
+					),
+				)));
+			}
+		}
+
+        return $result ? json_decode($result, true) : $result;
     }
 }

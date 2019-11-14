@@ -1,4 +1,5 @@
 <?php
+require_once ('db.php');
 /*
  # -- BEGIN LICENSE BLOCK ----------------------------------
  #
@@ -20,240 +21,374 @@
  # but WITHOUT ANY WARRANTY; without even the implied warranty of
  # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  # GNU General Public License for more details.
-
+ #
  # You should have received a copy of the GNU General Public License
  # along with this program.  If not, see <http://www.gnu.org/licenses/>.
  #
  # -- END LICENSE BLOCK -----------------------------------
-
+ #
  # DISCLAIMER
-
+ #
  # Do not edit or add to this file if you wish to upgrade MAGIX CMS to newer
  # versions in the future. If you wish to customize MAGIX CMS for your
  # needs please refer to http://www.magix-cms.com for more information.
  */
-require_once('db/mailchimp.php');
+ /**
+ * MAGIX CMS
+ * @category mailchimp
+ * @package plugins
+ * @copyright MAGIX CMS Copyright (c) 2008 - 2019 Gerits Aurelien,
+ * http://www.magix-cms.com,  http://www.magix-cjquery.com
+ * @license Dual licensed under the MIT or GPL Version 3 licenses.
+ * @version 2.0
+ * Author: Salvatore Di Salvo
+ * Date: 11-10-2019
+ * @name plugins_mailchimp_admin
+ */
 require_once 'MailChimp.php';
+class plugins_mailchimp_admin extends plugins_mailchimp_db
+{
+	/**
+	 * @var object
+	 */
+	protected $controller,
+		$data,
+		$template,
+		$message,
+		$plugins,
+		$modelLanguage,
+		$collectionLanguage,
+		$header,
+		$settings,
+		$setting,
+		$api;
 
-class plugins_mailchimp_admin extends database_plugins_mailchimp {
-    protected $header,$template,$message;
-    public static $notify = array('plugin'=>'true','template'=>'message-mailchimp.tpl','method'=>'fetch','assignFetch'=>'notifier');
+	/**
+	 * Les variables globales
+	 * @var integer $edit
+	 * @var string $action
+	 * @var string $tabs
+	 */
+	public $edit = 0,
+		$edit_type = '',
+		$action = '',
+		$tabs = '';
 
-    /**
-     * Les variables globales
-     */
-    public $action,$tab,$getlang;
-
-    /**
-     * Les variables du plugin gategorylink
-     */
-    public $idapi,$list_id,$idlist;
-
-    /**
-     * Construct class
-     */
-    public function __construct(){
-        if(class_exists('backend_model_message')){
-            $this->message = new backend_model_message();
-        }
-
-        if(magixcjquery_filter_request::isGet('getlang')){
-            $this->getlang = magixcjquery_form_helpersforms::inputNumeric($_GET['getlang']);
-        }
-        if(magixcjquery_filter_request::isGet('action')){
-            $this->action = magixcjquery_form_helpersforms::inputClean($_GET['action']);
-        }
-        if(magixcjquery_filter_request::isGet('tab')){
-            $this->tab = magixcjquery_form_helpersforms::inputClean($_GET['tab']);
-        }
-
-        if(magixcjquery_filter_request::isPost('idapi')){
-            $this->idapi = magixcjquery_form_helpersforms::inputClean($_POST['idapi']);
-        }
-        if(magixcjquery_filter_request::isPost('list_id')){
-            $this->list_id = magixcjquery_form_helpersforms::inputClean($_POST['list_id']);
-        }
-        if(magixcjquery_filter_request::isPost('idlist')){
-            $this->idlist = magixcjquery_form_helpersforms::inputNumeric($_POST['idlist']);
-        }
-
-        $this->template = new backend_controller_plugins();
-    }
+	/**
+	 * Les variables plugin
+	 * @var array $adv
+	 * @var integer $id
+	 * @var array $advantage
+	 */
+	public $id = 0,
+		$id_api = 0,
+		$api_key = null,
+		$list_id = null,
+		$name_list = null,
+		$content = array(),
+		$page,
+		$offset;
 
     /**
-     * @access private
-     * Installation des tables mysql du plugin
-     */
-    private function install_table(){
-        if(parent::c_show_tables() == 0){
-            $this->template->db_install_table('db.sql', 'request/install.tpl');
-        }else{
-            return true;
-        }
-    }
+	 * Construct class
+	 */
+	public function __construct(){
+		$this->template = new backend_model_template();
+		$this->plugins = new backend_controller_plugins();
+		$this->message = new component_core_message($this->template);
+		$this->modelLanguage = new backend_model_language($this->template);
+		$this->collectionLanguage = new component_collections_language();
+		$this->data = new backend_model_data($this);
+		$this->settings = new backend_model_setting();
+		$this->setting = $this->settings->getSetting();
+		$this->header = new http_header();
 
-    /**
-     * Retourne le message de notification
-     * @param $type
-     */
-    private function notify($type){
-        $this->message->getNotify($type,self::$notify);
-    }
+		$formClean = new form_inputEscape();
 
-    ///////////////
-    // DATA ///////
-    ///////////////
+		// --- GET
+		if(http_request::isGet('controller')) $this->controller = (string)$formClean->simpleClean($_GET['controller']);
+		if (http_request::isGet('edit')) $this->edit = (int)$formClean->numeric($_GET['edit']);
+		if (http_request::isGet('action')) $this->action = (string)$formClean->simpleClean($_GET['action']);
+		elseif (http_request::isPost('action')) $this->action = (string)$formClean->simpleClean($_POST['action']);
+		if (http_request::isPost('edit_type')) $this->edit_type = (string)$formClean->simpleClean($_POST['edit_type']);
+		if (http_request::isGet('tabs')) $this->tabs = (string)$formClean->simpleClean($_GET['tabs']);
+		if (http_request::isGet('page')) $this->page = intval($formClean->simpleClean($_GET['page']));
+		$this->offset = (http_request::isGet('offset')) ? intval($formClean->simpleClean($_GET['offset'])) : 25;
 
-    /**
-     * @return array
-     */
-    private function setListCall() {
-        $api = parent::getApi();
+		// --- ADD or EDIT
+		if (http_request::isPost('id')) $this->id = intval($formClean->simpleClean($_POST['id']));
+		if (http_request::isPost('id_api')) $this->id_api = (int)$formClean->numeric($_POST['id_api']);
+		if (http_request::isPost('list_id')) $this->list_id = (string)$formClean->simpleClean($_POST['list_id']);
+		if (http_request::isPost('content')) $this->content = (array)$formClean->arrayClean($_POST['content']);
 
-        if ($api != null) {
-            $id = parent::g_list($api['idapi'], $this->getlang);
+		// --- Config
+		if (http_request::isPost('api_key')) $this->api_key = (string)$formClean->simpleClean($_POST['api_key']);
+	}
 
-            if ($id != null) {
-                $MailChimp = new \Drewm\MailChimp($api['account_api']);
+	/**
+	 * Method to override the name of the plugin in the admin menu
+	 * @return string
+	 */
+	public function getExtensionName()
+	{
+		return $this->template->getConfigVars('mailchimp_plugin');
+	}
 
-                return $MailChimp->call('lists/members', array(
-                    'id' => $id['list_id']
-                ));
-            }
-        }
-    }
+	/**
+	 * Assign data to the defined variable or return the data
+	 * @param string $type
+	 * @param string|int|null $id
+	 * @param string $context
+	 * @param boolean $assign
+	 * @return mixed
+	 */
+	private function getItems($type, $id = null, $context = null, $assign = true) {
+		return $this->data->getItems($type, $id, $context, $assign);
+	}
 
-    /**
-     * @param $api
-     * @return array
-     */
-    private function getlist($api) {
-        return parent::g_list($api, $this->getlang);
-    }
+	/**
+	 * @param $data
+	 * @return array
+	 */
+	private function setItemContentData($data){
+		$arr = array();
+		foreach ($data as $page) {
+			if (!array_key_exists($page['id_list'], $arr)) {
+				$arr[$page['id_list']] = array();
+				$arr[$page['id_list']]['id_list'] = $page['id_list'];
+				$arr[$page['id_list']]['list_id'] = $page['list_id'];
+			}
+			$arr[$page['id_list']]['content'][$page['id_lang']] = array(
+				'id_lang' => $page['id_lang'],
+				'name_list' => $page['name_list'],
+				'active' => $page['active']
+			);
+		}
+		return $arr;
+	}
 
-    /////////////////
-    // ACTION ///////
-    /////////////////
+	/**
+	 * Retrieve all available lists
+	 */
+	private function getLists()
+	{
+		$lists = null;
+		if ($this->api['api_key'] != null) {
+			$MailChimp = new \Drewm\MailChimp($this->api['api_key']);
+			$arg = array(
+				'fields' => 'lists.id,lists.name'
+			);
+			$lists = $MailChimp->call('lists','GET',$arg);
+		}
+		$this->template->assign('lists',$lists['lists']);
+	}
 
-    /**
-     *
-     */
-    private function saveApi() {
-        if (isset($this->idapi)) {
-            parent::s_api($this->idapi);
-        }
-    }
+	/**
+	 * Retrieve members of a list
+	 * @param string $id
+	 */
+	private function getMembers($id)
+	{
+		$lists = null;
+		if ($this->api['api_key'] !== null && $id !== null) {
+			$MailChimp = new \Drewm\MailChimp($this->api['api_key']);
 
-    /**
-     * @param $api
-     */
-    private function delApi($api) {
-        if (isset($api['idapi'])) {
-            parent::d_api($api['idapi']);
-        }
-    }
+			$arg = array(
+				'fields' => 'members.email_address,members.language',
+				'count' => (int)$this->offset,
+				'offset' => $this->offset * (isset($this->page) ? $this->page : 0)
+			);
 
-    /**
-     *
-     */
-    private function addList() {
-        if (isset($this->list_id)) {
-            $api = parent::getApi();
+			$members = $MailChimp->call('lists/'.$id.'/members','GET',$arg);
+			$this->template->assign('nbp',ceil($members['total_items'] / $this->offset));
+		}
+		$this->template->assign('members',$members);
+	}
 
-            if ($api != null) {
-                parent::a_list($this->list_id,$api['idapi'],$this->getlang);
-            }
-        }
-    }
+	/**
+	 * @param $id_list
+	 */
+	private function saveContent($id_list)
+	{
+		$langs = $this->modelLanguage->setLanguage();
 
-    /**
-     *
-     */
-    private function delList() {
-        if (isset($this->idlist)) {
-            parent::d_list($this->idlist);
-        }
-    }
+		foreach ($langs as $id => $iso) {
+			$content = isset($this->content[$id]) ? $this->content[$id] : array();
+			$content['id_lang'] = $id;
+			$content['id_list'] = $id_list;
+			$content['active'] = isset($content['active']) ? 1 : 0;
+			if(!isset($content['name_list']) || empty($content['name_list'])) $content['name_list'] = $this->name_list;
+			else $this->name_list = $content['name_list'];
+			$params = array(
+				'type' => 'content',
+				'data' => $content
+			);
 
-    /**
-     * @throws Exception
-     */
-    public function run(){
-        if(self::install_table() == true){
-            if(magixcjquery_filter_request::isGet('getlang')) {
-                $api = parent::getApi();
+			$contentList = $this->getItems('content',array('id_list'=>$id_list, 'id_lang'=>$id),'one',false);
 
-                if (isset($this->tab)) {
-                    if($this->tab == 'about')
-                    {
-                        $this->template->display('about.tpl');
-                    }
-                    else if($this->tab == 'list')
-                    {
-                        if (isset($this->action)) {
-                            switch ($this->action) {
-                                case 'add':
-                                    $this->addList();
-                                    $this->notify('add');
-                                    break;
-                                case 'deleteList':
-                                    $this->delList();
-                                    $this->notify('delete');
-                                    break;
-                            }
-                        }
+			if($contentList) {
+				$this->upd($params);
+			}
+			else {
+				$this->add($params);
+			}
+		}
+	}
 
-                        $this->template->assign('account', $api['account_api']);
-                        $this->template->assign('list', $this->getList($api['idapi']));
-                        $this->template->assign('getListCall', $this->setListCall());
-                        $this->template->display('list.tpl');
-                    }
-                    else if ($this->tab == 'account')
-                    {
-                        switch ($this->action) {
-                            case 'save':
-                                if ($this->idapi != null) {
-                                    $this->saveApi();
-                                    $this->notify('save');
-                                }
-                                $this->template->assign('account', $this->idapi);
-                                break;
-                            case 'deleteApi':
-                                $this->delApi($api);
-                                $this->notify('reset');
-                                break;
-                            default:
-                                if ($api != null)
-                                    $this->template->assign('account', $api['account_api']);
-                        }
+	/**
+	 * Insert data
+	 * @param array $config
+	 */
+	private function add($config)
+	{
+		switch ($config['type']) {
+			case 'list':
+			case 'content':
+				parent::insert(
+					array('type' => $config['type']),
+					$config['data']
+				);
+				break;
+		}
+	}
 
-                        $this->template->display('account.tpl');
-                    }
-                }
-                else
-                {
-                    if ($api != null)
-                        $this->template->assign('account', $api['account_api']);
-                    $this->template->display('account.tpl');
-                }
-            }
-        }
-    }
+	/**
+	 * Update data
+	 * @param array $config
+	 */
+	private function upd($config)
+	{
+		switch ($config['type']) {
+			case 'api':
+			case 'content':
+				parent::update(
+					array('type' => $config['type']),
+					$config['data']
+				);
+				break;
+		}
+	}
 
-    /**
-     * @return array
-     */
-    public function setConfig(){
-        return array(
-            'url'=> array(
-                'lang'=>'list',
-                'name'=>'MailChimp'
-            ),
-            'icon'=> array(
-                'type'=>'font',
-                'name'=>'fa fa-envelope-o'
-            )
-        );
-    }
+	/**
+	 * Delete a record
+	 * @param $config
+	 */
+	private function del($config)
+	{
+		switch ($config['type']) {
+			case 'list':
+				parent::delete(
+					array('type' => $config['type']),
+					$config['data']
+				);
+				$this->message->json_post_response(true,'delete',array('id' => $this->id));
+				break;
+		}
+	}
+
+	/**
+	 * Execute the plugin
+	 */
+	public function run()
+	{
+		$defaultLanguage = $this->collectionLanguage->fetchData(array('context'=>'one','type'=>'default'));
+		$this->api = $this->getItems('api',null,'one');
+
+		if($this->action) {
+			switch ($this->action) {
+				case 'add':
+					if(!empty($this->content)) {
+						list($this->list_id, $this->name_list) = explode('|', $this->list_id);
+						$this->add(
+							array(
+								'type' => 'list',
+								'data' => array(
+									'id_api' => $this->api['id_api'],
+									'list_id' => $this->list_id
+								)
+							)
+						);
+
+						$list = $this->getItems('root',null,'one',false);
+
+						if ($list['id_list']) {
+							$this->saveContent($list['id_list']);
+							$this->message->json_post_response(true,'add_redirect');
+						}
+					}
+					else {
+						$this->modelLanguage->getLanguage();
+						$this->getLists();
+						$lists = $this->getItems('lists',$defaultLanguage['id_lang'],'all',false);
+						$narr = array();
+						foreach ($lists as $list) {
+							$narr[] = $list['list_id'];
+						}
+						$this->template->assign('clists',$narr);
+						$this->template->display('add.tpl');
+					}
+					break;
+				case 'edit':
+					if($this->id_api) {
+						$this->upd(
+							array(
+								'type' => 'api',
+								'data' => array(
+									'id' => $this->id_api,
+									'key' => $this->api_key
+								))
+						);
+						$this->message->json_post_response(true, $this->edit_type === 'update' ? 'update' : 'add_redirect', array('result'=>$this->id_api));
+					}
+					elseif (isset($this->id) && !empty($this->content)) {
+						$this->saveContent($this->id);
+						$this->message->json_post_response(true, 'update', array('result'=>$this->id));
+					}
+					else {
+						$this->modelLanguage->getLanguage();
+						$data = $this->getItems('data',$this->edit,'all',false);
+						$editData = $this->setItemContentData($data);
+						$this->template->assign('list',$editData[$this->edit]);
+						$this->getMembers($editData[$this->edit]['list_id']);
+						$scheme = array(
+							'email_address' => array(
+								'type' => 'text',
+								'title' => 'email_list'
+							),
+							'language' => array(
+								'type' => 'text',
+								'title' => 'lang_list'
+							)
+						);
+						$this->template->assign('scheme',$scheme);
+						$this->template->display('edit.tpl');
+					}
+					break;
+				case 'delete':
+					if(isset($this->id)) {
+						$this->del(
+							array(
+								'type'=>'list',
+								'data'=>array(
+									'id' => $this->id
+								)
+							)
+						);
+					}
+					break;
+			}
+		}
+		else {
+			if($this->api['api_key']) {
+				$this->getItems('lists',$defaultLanguage['id_lang'],'all');
+				$assign = array(
+					'id_list',
+					'list_id',
+					'name_list' => ['title' => 'name']
+				);
+				$this->data->getScheme(array('mc_mailchimp_list','mc_mailchimp_content'),array('id_list','list_id','name_list'),$assign);
+			}
+			$this->template->display('index.tpl');
+		}
+	}
 }
-?>

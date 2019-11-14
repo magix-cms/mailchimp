@@ -32,102 +32,153 @@
  # versions in the future. If you wish to customize MAGIX CMS for your
  # needs please refer to http://www.magix-cms.com for more information.
  */
-require_once('db/mailchimp.php');
+/**
+ * MAGIX CMS
+ * @category mailchimp
+ * @package plugins
+ * @copyright MAGIX CMS Copyright (c) 2008 - 2019 Gerits Aurelien,
+ * http://www.magix-cms.com,  http://www.magix-cjquery.com
+ * @license Dual licensed under the MIT or GPL Version 3 licenses.
+ * @version 2.0
+ * Author: Salvatore Di Salvo
+ * Date: 04-11-2019
+ * @name plugins_mailchimp_public
+ */
 require_once 'MailChimp.php';
+class plugins_mailchimp_public extends plugins_mailchimp_db
+{
+    protected $template, $data, $lang;
+    public $firstname, $lastname, $email;
 
-class plugins_mailchimp_public extends database_plugins_mailchimp {
-    protected $template;
-    public $email_chimp,$firstname_chimp,$lastname_chimp;
-    /**
-     * Class constructor
-     */
-    public function __construct(){
-        if(magixcjquery_filter_request::isPost('email_chimp')){
-            $this->email_chimp = magixcjquery_form_helpersforms::inputClean($_POST['email_chimp']);
-        }
-        if(magixcjquery_filter_request::isPost('firstname_chimp')){
-            $this->firstname_chimp = magixcjquery_form_helpersforms::inputClean($_POST['firstname_chimp']);
-        }
-        if(magixcjquery_filter_request::isPost('lastname_chimp')){
-            $this->lastname_chimp = magixcjquery_form_helpersforms::inputClean($_POST['lastname_chimp']);
-        }
-        $this->template = new frontend_controller_plugins();
-    }
+	/**
+	 * plugins_mailchimp_public constructor.
+	 * @param frontend_model_template $t
+	 */
+    public function __construct($t = null) {
+        $this->template = $t ? $t : new frontend_model_template();
+		$this->data = new frontend_model_data($this);
+	}
 
-    /**
-     * @access private
-     * Installation des tables mysql du plugin
-     */
-    private function install_table(){
-        if(parent::c_show_tables() == 0){
-            $this->getNotify('error');
-        }else{
-            return true;
-        }
-    }
+	/**
+	 * Assign data to the defined variable or return the data
+	 * @param string $type
+	 * @param string|int|null $id
+	 * @param string $context
+	 * @param boolean $assign
+	 * @return mixed
+	 */
+	private function getItems($type, $id = null, $context = null, $assign = true) {
+		return $this->data->getItems($type, $id, $context, $assign);
+	}
 
-    /**
-     * Retourne le message de notification
-     * @param $type
-     * @param bool $display
-     */
-    private function getNotify($type,$display = true,$var = 'login_message'){
-        $this->template->assign('message',$type);
-        if($display){
-            $this->template->display('message.tpl');
-        }else{
-            $fetch = $this->template->fetch('message.tpl');
-            $this->template->assign($var,$fetch);
-        }
-    }
+	/**
+	 * Set the notification
+	 * @param string $type
+	 * @param null|string $subContent
+	 * @return array
+	 */
+	private function setNotify($type,$subContent=null) {
+		$message = null;
+		switch($type){
+			case 'warning':
+				$warning = array(
+					'empty' =>  $this->template->getConfigVars('fields_empty')
+				);
+				$message = $warning[$subContent];
+				break;
+			case 'success':
+				$message = $this->template->getConfigVars('subscription_success');
+				break;
+			case 'error':
+				$error = array(
+					'api' => $this->template->getConfigVars('error_no_api'),
+					'list' => $this->template->getConfigVars('error_no_list'),
+					'request' => $this->template->getConfigVars('error_request')
+				);
+				$message = $error[$subContent];
+				break;
+		}
 
-    /**
-     * Inscription sur mailchimp
-     * @param $mail
-     * @param $fstname
-     * @param $lstname
-     * @param bool $notify
-     */
-    public function subscribe($mail, $fstname, $lstname, $notify = true){
-        if(self::install_table() == true) {
-            $api = parent::getApi();
+		return $message === null ? null : ['type' => $type,'content' => $message];
+	}
 
-            if ($api != null) {
-                $iso = frontend_model_template::current_Language();
-                $list = parent::getCode($api['idapi'], $iso);
+	/**
+	 * Display the notification
+	 * @param $type
+	 * @param null $subContent
+	 */
+	private function getNotify($type,$subContent=null) {
+		$message = $this->setNotify($type,$subContent);
+		if($message !== null) {
+			$this->template->assign('message',$message);
+			$this->template->display('mailchimp/notify/message.tpl');
+		}
+	}
 
-                if ($list != null) {
-                    $code = $list['list_id'];
+	/**
+	 * Controller
+	 */
+	public function run()
+	{
+		$formClean = new form_inputEscape();
+		if (http_request::isPost('firstname')) $this->firstname = $formClean->simpleClean($_POST['firstname']);
+		if (http_request::isPost('lastname')) $this->lastname = $formClean->simpleClean($_POST['lastname']);
+		if (http_request::isPost('email')) $this->email = $formClean->simpleClean($_POST['email']);
 
-                    $MailChimp = new \Drewm\MailChimp($api['account_api']);
-                    $result = $MailChimp->call('lists/subscribe', array(
-                        'id' => $code,
-                        'email' => array('email' => $mail),
-                        'merge_vars' => array('FNAME' => $fstname, 'LNAME' => $lstname),
-                        'double_optin' => false,
-                        'update_existing' => true,
-                        'replace_interests' => false,
-                        'send_welcome' => false
-                    ));
+		// *** If every fields has been filled
+		if($this->firstname !== "" && $this->lastname !== "" && $this->email !== "") {
+			$api = $this->getItems('api',null,'one',false);
 
-                    if($notify)
-                        $this->getNotify('add');
-                } else {
-                    $this->getNotify('error');
-                }
-            } else {
-                $this->getNotify('error');
-            }
-        }
-    }
+			// *** If the API key has been set
+			if($api) {
+				$lists = $this->getItems('iso_lists',$this->template->lang,'all',false);
 
-    /**
-     *
-     */
-    public function run(){
-        if(isset($this->email_chimp)){
-            $this->subscribe($this->email_chimp, $this->firstname_chimp, $this->lastname_chimp);
-        }
-    }
+				// *** If there is a list registered for subscription
+				if(!empty($lists)) {
+					foreach ($lists as $list) {
+						$id = $list['list_id'];
+						$hash = md5(strtolower($this->email));
+						$MailChimp = new \Drewm\MailChimp($api['api_key']);
+						$member = $MailChimp->call('lists/'.$id.'/members/'.$hash, 'GET',['fields' => 'members.id,members.status']);
+
+						$arg = [
+							'email_address' => $this->email,
+							'status_if_new' => 'subscribed',
+							'status' => 'subscribed',
+							'language' => $this->template->lang,
+							'merge_fields' => [
+								'FNAME' => $this->firstname,
+								'LNAME' => $this->lastname
+							]
+						];
+
+						// *** If there is no entry for this email
+						if(empty($member)) {
+							$result = $MailChimp->call('lists/'.$id.'/members/', 'POST', $arg);
+						}
+						else {
+							$result = $MailChimp->call('lists/'.$id.'/members/'.$hash, 'PUT', $arg);
+						}
+
+						// *** Display the notification depending on the result of the request
+						if(!$result || $result['status'] === 404) {
+							$this->getNotify('error','request');
+						}
+						else {
+							$this->getNotify('success');
+						}
+					}
+				}
+				else {
+					$this->getNotify('error','list');
+				}
+			}
+			else {
+				$this->getNotify('error','api');
+			}
+		}
+		else {
+			$this->getNotify('warning','empty');
+		}
+	}
 }
-?>
