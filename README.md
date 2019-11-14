@@ -1,5 +1,5 @@
 # mailchimp
-Plugin mailchimp for [magixcms](http://www.magix-cms.com)
+Plugin mailchimp for [magixcms](https://www.magix-cms.com)
 
 Mailchimp est un outil d’email marketing qui vous permettra de gérer vos listes de diffusion, de concevoir des newsletters professionnels.
 Le plugin intègre le système d'inscription a la newsletter de mailchimp avec un block formulaire ainsi que le visuel des inscriptions dans chaque langue.
